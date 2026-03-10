@@ -238,11 +238,12 @@
     "saveFailed": "保存失败"
   },
   "variantOptions": {
-    "max": "max - 最高强度",
+    "xhigh": "xhigh - 超高强度",
+    "max": "max - 最高强度（旧）",
     "high": "high - 高强度",
     "medium": "medium - 中等强度",
     "low": "low - 低强度",
-    "none": "none - 无强度"
+    "none": "none - 不设置"
   },
   "configDashboard": {
     "title": "配置状态总览",

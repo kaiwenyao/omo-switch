@@ -21,6 +21,7 @@ import {
 import { cn } from '../common/cn';
 import { getAgentLocalizedName } from '../AgentList/AgentCard';
 import { usePreloadStore } from '../../store/preloadStore';
+import { getVariantDisplayValue } from '../../utils/modelCapabilities';
 
 /**
  * 配置元数据接口
@@ -458,7 +459,7 @@ export function ConfigDashboard() {
                       {agent.variant ? (
                         <span className="inline-flex items-center gap-1 text-sm text-slate-400">
                           <Shield className="w-3.5 h-3.5" />
-                          {agent.variant}
+                          {getVariantDisplayValue(agent.model, agent.variant)}
                         </span>
                       ) : (
                         <span className="text-sm text-slate-600">-</span>

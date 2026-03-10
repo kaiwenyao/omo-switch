@@ -1,8 +1,9 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { AgentVariant } from '../utils/modelCapabilities';
 
 export interface AgentConfig {
   model: string;
-  variant?: 'max' | 'high' | 'medium' | 'low' | 'none';
+  variant?: AgentVariant;
 }
 
 export interface OmoConfig {
@@ -14,7 +15,7 @@ export interface OmoConfig {
 export interface AgentUpdateRequest {
   agentName: string;
   model: string;
-  variant?: 'max' | 'high' | 'medium' | 'low' | 'none';
+  variant?: AgentVariant;
 }
 
 // ==================== 配置相关接口 ====================
@@ -178,7 +179,7 @@ export async function getOmoCacheDir(): Promise<string> {
 export async function updateAgentModel(
   agentName: string,
   model: string,
-  variant?: 'max' | 'high' | 'medium' | 'low' | 'none'
+  variant?: AgentVariant
 ): Promise<OmoConfig> {
   return invoke<OmoConfig>('update_agent_model', { agentName, model, variant });
 }

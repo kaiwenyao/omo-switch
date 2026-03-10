@@ -7,6 +7,11 @@ import { Select } from '../common/Select';
 import { SearchableSelect } from '../common/SearchableSelect';
 import { toast } from '../common/Toast';
 import type { AgentConfig } from '../../services/tauri';
+import {
+  getVariantDisplayValue,
+  getVariantOptions,
+  isVariantSupported,
+} from '../../utils/modelCapabilities';
 
 interface ModelSelectorProps {
   isOpen: boolean;
@@ -18,8 +23,6 @@ interface ModelSelectorProps {
   onSave: (model: string, variant: AgentConfig['variant']) => Promise<void>;
   isSaving?: boolean;
 }
-
-const VARIANT_OPTIONS_KEYS = ['max', 'high', 'medium', 'low', 'none'] as const;
 
 function extractProvider(model: string): string {
   const slashIndex = model.indexOf('/');
@@ -91,11 +94,28 @@ export function ModelSelector({
     ? `${selectedProvider}/${selectedModelName}`
     : selectedModelName || '';
 
+  const variantOptionKeys = useMemo(
+    () => getVariantOptions(fullModelPath),
+    [fullModelPath]
+  );
+
+  useEffect(() => {
+    setSelectedVariant((current) => getVariantDisplayValue(fullModelPath, current));
+  }, [fullModelPath]);
+
   // 处理保存
   const handleSave = async () => {
     if (!fullModelPath) return;
     try {
       const variantToSave = selectedVariant || 'none';
+      if (!isVariantSupported(fullModelPath, variantToSave)) {
+        toast.error(
+          t('modelSelector.unsupportedIntensity', {
+            defaultValue: '当前模型不支持该强度等级，请重新选择',
+          })
+        );
+        return;
+      }
       await onSave(fullModelPath, variantToSave);
       toast.success(t('modelSelector.updateSuccess', { name: agentName }));
       onClose();
@@ -111,7 +131,7 @@ export function ModelSelector({
 
   const currentFullModel = currentConfig.model;
 
-  const variantOptions = VARIANT_OPTIONS_KEYS.map((key) => ({
+  const variantOptions = variantOptionKeys.map((key) => ({
     value: key,
     label: t(`variantOptions.${key}`),
   }));
@@ -202,7 +222,9 @@ export function ModelSelector({
             </div>
             <div className="flex">
               <span className="text-slate-500 w-20">{t('modelSelector.intensity')}</span>
-              <span className="font-medium text-slate-700">{selectedVariant || 'none'}</span>
+              <span className="font-medium text-slate-700">
+                {getVariantDisplayValue(fullModelPath, selectedVariant)}
+              </span>
             </div>
           </div>
           {fullModelPath !== currentFullModel && fullModelPath && (

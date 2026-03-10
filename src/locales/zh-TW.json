@@ -159,11 +159,12 @@
     "saveFailed": "儲存失敗"
   },
   "variantOptions": {
-    "max": "max - 最高強度",
+    "xhigh": "xhigh - 超高強度",
+    "max": "max - 最高強度（舊）",
     "high": "high - 高強度",
     "medium": "medium - 中等強度",
     "low": "low - 低強度",
-    "none": "none - 無強度"
+    "none": "none - 不設定"
   },
   "configDashboard": {
     "title": "配置狀態總覽",

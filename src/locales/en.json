@@ -238,11 +238,12 @@
      "saveFailed": "Save failed"
    },
   "variantOptions": {
-    "max": "max - Maximum intensity",
+    "xhigh": "xhigh - Extra high intensity",
+    "max": "max - Maximum intensity (legacy)",
     "high": "high - High intensity",
     "medium": "medium - Medium intensity",
     "low": "low - Low intensity",
-    "none": "none - No intensity"
+    "none": "none - Unset"
   },
   "configDashboard": {
     "title": "Config Status Overview",

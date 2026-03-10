@@ -17,6 +17,12 @@ import {
   type AgentUpdateRequest,
   type OmoConfig,
 } from '../../services/tauri';
+import {
+  getVariantDisplayValue,
+  getVariantOptions,
+  isVariantSupported,
+  type AgentVariant,
+} from '../../utils/modelCapabilities';
 
 interface ApplyModelModalProps {
   isOpen: boolean;
@@ -25,16 +31,10 @@ interface ApplyModelModalProps {
   modelName: string;
 }
 
-const VARIANT_OPTIONS = [
-  { value: 'max', label: 'Max' },
-  { value: 'high', label: 'High' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'low', label: 'Low' },
-  { value: 'none', label: 'None' },
-] as const;
 type VariantValue = NonNullable<AgentConfig['variant']>;
-const VARIANT_PRIORITY: VariantValue[] = ['max', 'high', 'medium', 'low', 'none'];
+const VARIANT_PRIORITY: VariantValue[] = ['xhigh', 'max', 'high', 'medium', 'low', 'none'];
 const VARIANT_BADGE_STYLE: Record<VariantValue, string> = {
+  xhigh: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700',
   max: 'border-rose-200 bg-rose-50 text-rose-700',
   high: 'border-amber-200 bg-amber-50 text-amber-700',
   medium: 'border-blue-200 bg-blue-50 text-blue-700',
@@ -42,19 +42,13 @@ const VARIANT_BADGE_STYLE: Record<VariantValue, string> = {
   none: 'border-slate-200 bg-slate-50 text-slate-600',
 };
 const VARIANT_BADGE_TEXT: Record<VariantValue, string> = {
+  xhigh: 'XH',
   max: 'M',
   high: 'H',
   medium: 'M',
   low: 'L',
   none: 'N',
 };
-
-function normalizeVariant(value?: string): VariantValue {
-  if (value === 'max' || value === 'high' || value === 'medium' || value === 'low' || value === 'none') {
-    return value;
-  }
-  return 'none';
-}
 
 function toCamelCaseProvider(value: string): string {
   if (!value) return 'unknown';
@@ -95,6 +89,11 @@ export function ApplyModelModal({
   const [categorySearch, setCategorySearch] = useState('');
   const [isApplying, setIsApplying] = useState(false);
 
+  const variantOptions = useMemo(
+    () => getVariantOptions(fullModelPath),
+    [fullModelPath]
+  );
+
   const resolveDefaultVariant = useCallback(
     (config?: OmoConfig | null): VariantValue => {
       if (!config) return 'none';
@@ -104,7 +103,7 @@ export function ApplyModelModal({
       ];
       const variants = allConfigs
         .filter((item) => item?.model === fullModelPath)
-        .map((item) => normalizeVariant(item.variant));
+        .map((item) => getVariantDisplayValue(fullModelPath, item.variant));
 
       if (variants.length === 0) {
         return 'none';
@@ -297,6 +296,15 @@ export function ApplyModelModal({
 
     setIsApplying(true);
     try {
+      if (!isVariantSupported(fullModelPath, variant)) {
+        toast.error(
+          t('applyModel.unsupportedIntensity', {
+            defaultValue: '当前模型不支持该强度等级，请重新选择',
+          })
+        );
+        return;
+      }
+
       const updates: AgentUpdateRequest[] = [];
 
       selectedAgents.forEach((agentName) => {
@@ -356,7 +364,7 @@ export function ApplyModelModal({
     const providerName = hasProvider ? modelSegments[0] : 'unknown';
     const providerDisplayName = toCamelCaseProvider(providerName);
     const modelId = hasProvider ? modelSegments.slice(1).join('/') : modelPath;
-    const currentVariant = normalizeVariant(config.variant);
+    const currentVariant = getVariantDisplayValue(modelPath, config.variant);
 
     return (
       <label
@@ -444,10 +452,10 @@ export function ApplyModelModal({
         <Select
           label={t('applyModel.intensityLevel')}
           value={variant || 'none'}
-          onChange={(value) => setVariant(normalizeVariant(value))}
-          options={VARIANT_OPTIONS.map((opt) => ({
-            value: opt.value,
-            label: t(`variantOptions.${opt.value}`),
+          onChange={(value) => setVariant(value as AgentVariant)}
+          options={variantOptions.map((opt) => ({
+            value: opt,
+            label: t(`variantOptions.${opt}`),
           }))}
         />
 

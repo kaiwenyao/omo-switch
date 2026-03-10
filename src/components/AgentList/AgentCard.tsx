@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Edit2, Bot, Cpu, Sparkles, Eye, Search, Hammer, BookOpen, Palette, Brain, Shield, Map, Wrench, FileText, Users, Zap, BarChart3 } from 'lucide-react';
 import { cn } from '../common/cn';
 import type { AgentConfig } from '../../services/tauri';
+import { getVariantDisplayValue } from '../../utils/modelCapabilities';
 
 interface AgentCardProps {
   agentName: string;
@@ -38,6 +39,7 @@ function formatAgentName(name: string): string {
 
 function getVariantStyle(variant?: string): { bg: string; text: string; border: string } {
   const styles: Record<string, { bg: string; text: string; border: string }> = {
+    xhigh: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-700', border: 'border-fuchsia-200' },
     max: { bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-200' },
     high: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200' },
     medium: { bg: 'bg-blue-50', text: 'text-blue-600', border: 'border-blue-200' },
@@ -109,7 +111,6 @@ function getProviderColor(provider: string): { bg: string; text: string } {
 
 const AgentCardBase = ({ agentName, config, onEdit, isCategory }: AgentCardProps) => {
   const { t } = useTranslation();
-  const variantStyle = getVariantStyle(config.variant);
   const icon = getAgentIcon(agentName, isCategory);
   const displayName = formatAgentName(agentName);
   const localizedName = getAgentLocalizedName(agentName, t, isCategory);
@@ -117,6 +118,8 @@ const AgentCardBase = ({ agentName, config, onEdit, isCategory }: AgentCardProps
   const shortModelName = config.model.split('/').pop() || config.model;
   const provider = config.model.split('/')[0] || 'unknown';
   const providerColor = getProviderColor(provider);
+  const displayVariant = getVariantDisplayValue(config.model, config.variant);
+  const variantStyle = getVariantStyle(displayVariant);
 
   return (
     <div
@@ -171,7 +174,7 @@ const AgentCardBase = ({ agentName, config, onEdit, isCategory }: AgentCardProps
           variantStyle.text,
           variantStyle.border
         )}>
-          {config.variant || 'none'}
+          {displayVariant}
         </span>
       </div>
 
