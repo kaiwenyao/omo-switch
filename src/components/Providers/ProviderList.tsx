@@ -119,6 +119,8 @@ export interface ProviderInfo {
   website_url: string | null;
   is_configured: boolean;
   is_builtin: boolean;
+  supports_base_url: boolean;
+  supports_connection_test: boolean;
 }
 
 export interface ProviderPreset {

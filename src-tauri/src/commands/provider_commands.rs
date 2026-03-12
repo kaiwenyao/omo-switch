@@ -4,6 +4,23 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 
+const BASE_URL_COMPATIBLE_PROVIDERS: &[&str] = &[
+    "openai",
+    "deepseek",
+    "groq",
+    "openrouter",
+    "xai",
+    "moonshotai",
+    "moonshotai-cn",
+    "kimi-for-coding",
+    "zhipuai",
+    "zhipuai-coding-plan",
+    "minimax",
+    "minimax-cn",
+    "minimax-coding-plan",
+    "minimax-cn-coding-plan",
+];
+
 // ============================================================================
 // 供应商域名映射（用于获取图标）
 // ============================================================================
@@ -58,6 +75,16 @@ pub struct ProviderInfo {
     pub is_configured: bool,
     /// 是否为内置供应商
     pub is_builtin: bool,
+    /// 当前是否支持配置自定义 Base URL
+    pub supports_base_url: bool,
+    /// 当前是否支持在 UI 中直接测试连接
+    pub supports_connection_test: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfigSnapshot {
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
 }
 
 /// 连接测试结果
@@ -261,6 +288,26 @@ fn write_opencode_config(config: &Value) -> Result<(), String> {
     Ok(())
 }
 
+fn get_provider_base_url(provider_id: &str, config: &Value) -> Option<String> {
+    config
+        .get("provider")
+        .and_then(|providers| providers.get(provider_id))
+        .and_then(|provider| provider.get("options"))
+        .and_then(|options| options.get("baseURL").or_else(|| options.get("baseUrl")))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn provider_supports_base_url(provider_id: &str) -> bool {
+    provider_id != "opencode"
+}
+
+fn provider_supports_connection_test(provider_id: &str) -> bool {
+    BASE_URL_COMPATIBLE_PROVIDERS.contains(&provider_id)
+}
+
 /// 读取 connected-providers.json 获取已连接的供应商
 fn read_connected_providers() -> Result<HashSet<String>, String> {
     let path = get_connected_providers_path()?;
@@ -330,6 +377,8 @@ pub fn get_provider_status() -> Result<Vec<ProviderInfo>, String> {
             website_url: None,
             is_configured,
             is_builtin: true,
+            supports_base_url: provider_supports_base_url(&provider_id),
+            supports_connection_test: provider_supports_connection_test(&provider_id),
         });
     }
 
@@ -339,6 +388,28 @@ pub fn get_provider_status() -> Result<Vec<ProviderInfo>, String> {
     Ok(providers)
 }
 
+#[tauri::command]
+pub fn get_provider_config(provider_id: String) -> Result<ProviderConfigSnapshot, String> {
+    let auth_data = match read_auth_file() {
+        Ok(data) => data,
+        Err(err) => {
+            eprintln!("警告：读取 auth.json 失败，降级为空认证数据: {}", err);
+            HashMap::new()
+        }
+    };
+    let config = read_opencode_config()?;
+
+    let api_key = auth_data
+        .get(&provider_id)
+        .and_then(|entry| entry.key.clone())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let base_url = get_provider_base_url(&provider_id, &config);
+
+    Ok(ProviderConfigSnapshot { api_key, base_url })
+}
+
 /// 设置供应商的 API Key
 ///
 /// 逻辑：
@@ -346,7 +417,13 @@ pub fn get_provider_status() -> Result<Vec<ProviderInfo>, String> {
 /// 2. 添加/更新 {provider_id: {type: "api", key: api_key}}
 /// 3. 写回 auth.json
 #[tauri::command]
-pub fn set_provider_api_key(provider_id: String, api_key: String) -> Result<(), String> {
+pub fn set_provider_api_key(
+    provider_id: String,
+    api_key: String,
+    base_url: Option<String>,
+) -> Result<(), String> {
+    let provider_id_for_config = provider_id.clone();
+
     // 读取现有的 auth 数据
     let mut auth_data = read_auth_file()?;
 
@@ -363,7 +440,54 @@ pub fn set_provider_api_key(provider_id: String, api_key: String) -> Result<(), 
     // 写回 auth.json
     write_auth_file(&auth_data)?;
 
+    if provider_supports_base_url(&provider_id_for_config) {
+        let mut config = read_opencode_config()?;
+        if config.get("provider").is_none() {
+            config["provider"] = json!({});
+        }
+
+        if config["provider"].get(&provider_id_for_config).is_none() {
+            config["provider"][&provider_id_for_config] = json!({
+                "npm": provider_npm(&provider_id_for_config)
+            });
+        } else if config["provider"][&provider_id_for_config].get("npm").is_none() {
+            config["provider"][&provider_id_for_config]["npm"] = json!(provider_npm(&provider_id_for_config));
+        }
+
+        let trimmed = base_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+
+        if let Some(url) = trimmed {
+            if config["provider"][&provider_id_for_config].get("options").is_none() {
+                config["provider"][&provider_id_for_config]["options"] = json!({});
+            }
+            config["provider"][&provider_id_for_config]["options"]["baseURL"] = json!(url);
+        } else if let Some(options) = config["provider"][&provider_id_for_config]["options"].as_object_mut() {
+            options.remove("baseURL");
+            if options.is_empty() {
+                config["provider"][&provider_id_for_config]
+                    .as_object_mut()
+                    .and_then(|provider| provider.remove("options"));
+            }
+        }
+
+        write_opencode_config(&config)?;
+    }
+
     Ok(())
+}
+
+fn provider_npm(provider_id: &str) -> &'static str {
+    match provider_id {
+        "openai" | "deepseek" | "xai" | "moonshotai" | "moonshotai-cn" | "kimi-for-coding"
+        | "zhipuai" | "zhipuai-coding-plan" | "minimax" | "minimax-cn"
+        | "minimax-coding-plan" | "minimax-cn-coding-plan" => "@ai-sdk/openai",
+        "groq" => "@ai-sdk/groq",
+        "openrouter" => "@openrouter/ai-sdk-provider",
+        _ => "@ai-sdk/openai",
+    }
 }
 
 /// 删除供应商的认证信息
@@ -443,6 +567,8 @@ pub fn add_custom_provider(
         website_url: Some(base_url),
         is_configured: true,
         is_builtin: false,
+        supports_base_url: true,
+        supports_connection_test: true,
     })
 }
 
@@ -540,81 +666,6 @@ pub fn remove_custom_model(provider_id: String, model_id: String) -> Result<(), 
 #[tauri::command]
 pub fn get_custom_models() -> Result<HashMap<String, Vec<String>>, String> {
     Ok(crate::services::model_service::get_custom_models())
-}
-
-// ============================================================================
-// 连接测试函数
-// ============================================================================
-
-/// 测试供应商连接
-///
-/// 根据 npm 包类型选择对应的测试 URL，发送 HTTP 请求验证 API Key 是否有效
-#[tauri::command]
-pub fn test_provider_connection(
-    npm: String,
-    base_url: Option<String>,
-    api_key: String,
-) -> Result<ConnectionTestResult, String> {
-    let test_url = match npm.as_str() {
-        // OpenAI 兼容接口，使用自定义 base_url
-        "@ai-sdk/openai-compatible" => {
-            let base = base_url.unwrap_or_default();
-            format!("{}/models", base.trim_end_matches('/'))
-        }
-        // OpenAI 官方接口
-        "@ai-sdk/openai" => "https://api.openai.com/v1/models".to_string(),
-        // Anthropic 接口（跳过连接测试）
-        "@ai-sdk/anthropic" => {
-            return Ok(ConnectionTestResult {
-                success: true,
-                message: "Anthropic API Key saved (connection test skipped)".to_string(),
-            });
-        }
-        // Google AI 接口（跳过连接测试）
-        "@ai-sdk/google" => {
-            return Ok(ConnectionTestResult {
-                success: true,
-                message: "Google AI API Key saved (connection test skipped)".to_string(),
-            });
-        }
-        // Groq 接口
-        "@ai-sdk/groq" => "https://api.groq.com/openai/v1/models".to_string(),
-        // OpenRouter 接口
-        "@openrouter/ai-sdk-provider" => "https://openrouter.ai/api/v1/models".to_string(),
-        // 未知供应商，跳过测试
-        _ => {
-            return Ok(ConnectionTestResult {
-                success: true,
-                message: format!("Unknown provider {}, config saved", npm),
-            });
-        }
-    };
-
-    // 发送 HTTP GET 请求测试连接
-    let response = ureq::get(&test_url)
-        .set("Authorization", &format!("Bearer {}", api_key))
-        .timeout(std::time::Duration::from_secs(10))
-        .call();
-
-    // 处理响应结果
-    match response {
-        Ok(resp) if resp.status() == 200 => Ok(ConnectionTestResult {
-            success: true,
-            message: "Connection successful".to_string(),
-        }),
-        Ok(resp) => Ok(ConnectionTestResult {
-            success: false,
-            message: format!("HTTP {}", resp.status()),
-        }),
-        Err(ureq::Error::Status(code, _)) => Ok(ConnectionTestResult {
-            success: false,
-            message: format!("HTTP {}", code),
-        }),
-        Err(e) => Ok(ConnectionTestResult {
-            success: false,
-            message: e.to_string(),
-        }),
-    }
 }
 
 // ============================================================================

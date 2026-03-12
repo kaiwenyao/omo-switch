@@ -10,6 +10,11 @@ interface CustomProviderModalProps {
   onSuccess: () => void;
 }
 
+interface ConnectionTestResult {
+  success: boolean;
+  message: string;
+}
+
 export function CustomProviderModal({ onClose, onSuccess }: CustomProviderModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
@@ -64,13 +69,18 @@ export function CustomProviderModal({ onClose, onSuccess }: CustomProviderModalP
     setIsTesting(true);
     setTestStatus('idle');
     try {
-      await invoke('test_provider_connection', {
-        npm: null,
+      const result = await invoke<ConnectionTestResult>('test_provider_connection', {
+        npm: '',
         baseUrl: baseUrl.trim(),
         apiKey: apiKey.trim(),
       });
-      setTestStatus('success');
-      toast.success(t('provider.testSuccess'));
+      if (result.success) {
+        setTestStatus('success');
+        toast.success(t('provider.testSuccess'));
+      } else {
+        setTestStatus('error');
+        toast.error(result.message || t('provider.testFailed'));
+      }
     } catch (err) {
       setTestStatus('error');
       toast.error(t('provider.testFailed'));

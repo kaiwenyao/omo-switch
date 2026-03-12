@@ -55,6 +55,7 @@
 
 ### 3. Provider 管理
 - **API Key 配置**：可视化管理各提供商的 API Key
+- **Base URL 配置**：支持为 provider 写入 opencode Base URL，留空可回退默认地址
 - **自定义提供商**：添加和配置自定义模型提供商
 - **连接状态**：实时检测提供商连接状态
 

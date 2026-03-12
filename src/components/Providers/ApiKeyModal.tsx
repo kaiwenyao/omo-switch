@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { X, Key, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Key, Loader2, Globe } from 'lucide-react';
 import { Button } from '../common/Button';
 import { toast } from '../common/Toast';
 import type { ProviderInfo } from './ProviderList';
@@ -12,12 +12,47 @@ interface ApiKeyModalProps {
   onSuccess: () => void;
 }
 
+interface ProviderConfigSnapshot {
+  api_key: string | null;
+  base_url: string | null;
+}
+
 export function ApiKeyModal({ provider, onClose, onSuccess }: ApiKeyModalProps) {
   const { t } = useTranslation();
   const [apiKey, setApiKey] = useState('');
+  const [baseUrl, setBaseUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-  const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [isFetchingConfig, setIsFetchingConfig] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadProviderConfig = async () => {
+      setIsFetchingConfig(true);
+      try {
+        const config = await invoke<ProviderConfigSnapshot>('get_provider_config', {
+          providerId: provider.id,
+        });
+        if (cancelled) return;
+        setApiKey(config.api_key ?? '');
+        setBaseUrl(config.base_url ?? '');
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load provider config:', err);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsFetchingConfig(false);
+        }
+      }
+    };
+
+    void loadProviderConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [provider.id]);
 
   const handleSave = async () => {
     if (!apiKey.trim()) {
@@ -30,6 +65,7 @@ export function ApiKeyModal({ provider, onClose, onSuccess }: ApiKeyModalProps) 
       await invoke('set_provider_api_key', {
         providerId: provider.id,
         apiKey: apiKey.trim(),
+        baseUrl: provider.supports_base_url ? (baseUrl.trim() || null) : null,
       });
       toast.success(t('provider.saveSuccess'));
       onSuccess();
@@ -39,31 +75,6 @@ export function ApiKeyModal({ provider, onClose, onSuccess }: ApiKeyModalProps) 
       console.error('Failed to save API key:', err);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleTest = async () => {
-    if (!apiKey.trim()) {
-      toast.error(t('provider.apiKeyRequired'));
-      return;
-    }
-
-    setIsTesting(true);
-    setTestStatus('idle');
-    try {
-      await invoke('test_provider_connection', {
-        npm: provider.npm,
-        baseUrl: null,
-        apiKey: apiKey.trim(),
-      });
-      setTestStatus('success');
-      toast.success(t('provider.testSuccess'));
-    } catch (err) {
-      setTestStatus('error');
-      toast.error(t('provider.testFailed'));
-      console.error('Connection test failed:', err);
-    } finally {
-      setIsTesting(false);
     }
   };
 
@@ -102,12 +113,12 @@ export function ApiKeyModal({ provider, onClose, onSuccess }: ApiKeyModalProps) 
               value={apiKey}
               onChange={(e) => {
                 setApiKey(e.target.value);
-                setTestStatus('idle');
               }}
               placeholder={t('provider.apiKeyPlaceholder')}
               className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl
                        focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500
                        transition-all duration-200"
+              disabled={isFetchingConfig}
             />
             {provider.website_url && (
               <p className="mt-2 text-xs text-slate-500">
@@ -116,18 +127,32 @@ export function ApiKeyModal({ provider, onClose, onSuccess }: ApiKeyModalProps) 
             )}
           </div>
 
-          {testStatus === 'success' && (
-            <div className="flex items-center gap-2 p-3 bg-emerald-50 text-emerald-700 rounded-lg text-sm">
-              <CheckCircle className="w-4 h-4" />
-              {t('provider.testSuccess')}
+          {provider.supports_base_url && (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">
+                <Globe className="w-4 h-4 inline mr-1" />
+                {t('provider.baseUrl')}
+              </label>
+              <input
+                type="text"
+                value={baseUrl}
+                onChange={(e) => {
+                  setBaseUrl(e.target.value);
+                }}
+                placeholder={t('provider.baseUrlPlaceholder')}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl
+                         focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500
+                         transition-all duration-200"
+                disabled={isFetchingConfig}
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                {provider.id === 'openai'
+                  ? t('provider.openaiBaseUrlHint')
+                  : t('provider.compatibleBaseUrlHint')}
+              </p>
             </div>
           )}
-          {testStatus === 'error' && (
-            <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
-              <AlertCircle className="w-4 h-4" />
-              {t('provider.testFailed')}
-            </div>
-          )}
+
         </div>
 
         <div className="flex gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50">
@@ -139,24 +164,9 @@ export function ApiKeyModal({ provider, onClose, onSuccess }: ApiKeyModalProps) 
             {t('button.cancel')}
           </Button>
           <Button
-            variant="secondary"
-            onClick={handleTest}
-            disabled={isTesting || !apiKey.trim()}
-            className="flex-1"
-          >
-            {isTesting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {t('provider.testing')}
-              </>
-            ) : (
-              t('provider.testConnection')
-            )}
-          </Button>
-          <Button
             variant="primary"
             onClick={handleSave}
-            disabled={isLoading || !apiKey.trim()}
+            disabled={isLoading || isFetchingConfig || !apiKey.trim()}
             className="flex-1"
           >
             {isLoading ? (

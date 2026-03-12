@@ -55,6 +55,7 @@
 
 ### 3. Provider Management
 - **API Key Configuration**: Visual management of API Keys for each provider
+- **Base URL Configuration**: Supports writing provider Base URL into opencode, and leaving it empty falls back to the default endpoint
 - **Custom Providers**: Add and configure custom model providers
 - **Connection Status**: Real-time detection of provider connection status
 
