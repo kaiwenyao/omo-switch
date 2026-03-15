@@ -507,6 +507,7 @@ pub fn set_provider_api_key(
 fn provider_default_npm(provider_id: &str) -> &'static str {
     match provider_id {
         "openai" => "@ai-sdk/openai",
+        "github-copilot" => "@ai-sdk/github-copilot",
         "zhipuai" | "zhipuai-coding-plan" | "moonshotai" | "moonshotai-cn" | "kimi-for-coding"
         | "minimax" | "minimax-cn" | "minimax-coding-plan" | "minimax-cn-coding-plan" => "@ai-sdk/openai-compatible",
         "deepseek" => "@ai-sdk/anthropic",
