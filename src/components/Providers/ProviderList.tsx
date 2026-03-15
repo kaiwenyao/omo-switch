@@ -201,11 +201,21 @@ function CollapsibleSection({
   defaultExpanded = true,
 }: CollapsibleSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const hasUserToggledRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasUserToggledRef.current) {
+      setIsExpanded(defaultExpanded);
+    }
+  }, [defaultExpanded]);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <button
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => {
+          hasUserToggledRef.current = true;
+          setIsExpanded(!isExpanded);
+        }}
         className="w-full flex items-center justify-between px-6 py-4 bg-slate-50 hover:bg-slate-100 transition-colors"
       >
         <div className="flex items-center gap-3">
