@@ -120,11 +120,26 @@ struct ConnectedProvidersCache {
     updated_at: String,
 }
 
-/// 供应商模型缓存结构（用于 provider-models.json）
-/// 文件格式: { "models": { "provider_id": ["model1", "model2"] } }
+/// 兼容两种 provider-models.json 格式：
+/// 1. 旧格式: { "models": { "provider_id": ["model1", "model2"] } }
+/// 2. 新格式: { "models": { "provider_id": [{ "id": "...", ... }] } }
 #[derive(Debug, Deserialize)]
 struct ProviderModelsCache {
-    models: HashMap<String, Vec<String>>,
+    models: HashMap<String, Vec<ProviderModelEntry>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ProviderModelEntry {
+    Id(String),
+    Object {
+        id: String,
+        #[allow(dead_code)]
+        #[serde(rename = "providerID")]
+        provider_id: Option<String>,
+        #[allow(dead_code)]
+        name: Option<String>,
+    },
 }
 
 // ============================================================================
@@ -344,7 +359,29 @@ fn read_provider_models() -> Result<HashMap<String, Vec<String>>, String> {
         fs::read_to_string(&path).map_err(|e| format!("读取 provider-models.json 失败: {}", e))?;
     let cache: ProviderModelsCache = serde_json::from_str(&content)
         .map_err(|e| format!("解析 provider-models.json 失败: {}", e))?;
-    Ok(cache.models)
+    let normalized = cache
+        .models
+        .into_iter()
+        .map(|(provider_id, entries)| {
+            let models = entries
+                .into_iter()
+                .filter_map(|entry| match entry {
+                    ProviderModelEntry::Id(id) => {
+                        let trimmed = id.trim().to_string();
+                        (!trimmed.is_empty()).then_some(trimmed)
+                    }
+                    ProviderModelEntry::Object { id, .. } => {
+                        let trimmed = id.trim().to_string();
+                        (!trimmed.is_empty()).then_some(trimmed)
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            (provider_id, models)
+        })
+        .collect();
+
+    Ok(normalized)
 }
 
 // ============================================================================
