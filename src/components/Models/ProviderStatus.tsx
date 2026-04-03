@@ -507,12 +507,27 @@ export function ProviderStatus() {
     connectedProviders: string[]
   ): ProviderStatus[] {
     const connectedSet = new Set(connectedProviders.map((p) => p.toLowerCase()));
-
-    return groupedModels.map((group) => ({
+    const fromGrouped = groupedModels.map((group) => ({
       name: group.provider,
       isConnected: connectedSet.has(group.provider.toLowerCase()),
       modelCount: group.models.length,
     }));
+
+    const existing = new Set(fromGrouped.map((item) => item.name.toLowerCase()));
+    const connectedOnly = connectedProviders
+      .filter((provider) => !existing.has(provider.toLowerCase()))
+      .map((provider) => ({
+        name: provider,
+        isConnected: true,
+        modelCount: 0,
+      }));
+
+    return [...fromGrouped, ...connectedOnly].sort((a, b) => {
+      if (b.modelCount !== a.modelCount) {
+        return b.modelCount - a.modelCount;
+      }
+      return compareProviderName(a.name, b.name);
+    });
   }
 
   const grouped = useMemo(

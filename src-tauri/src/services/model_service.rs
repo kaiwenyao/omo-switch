@@ -1,7 +1,7 @@
 use crate::i18n;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -186,7 +186,8 @@ pub fn get_custom_models() -> HashMap<String, Vec<String>> {
 /// 2. ~/.config/opencode/opencode.json 的 provider.{name}.models - 自定义模型
 ///
 /// 返回格式: { "provider_name": ["model1", "model2", ...] }
-const DEFAULT_OPENCODE_MODELS_TIMEOUT_SECS: u64 = 12;
+const DEFAULT_OPENCODE_MODELS_TIMEOUT_SECS: u64 = 6;
+const DEFAULT_OPENCODE_MODELS_TOTAL_TIMEOUT_SECS: u64 = 10;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AvailableModelsWithStatus {
@@ -230,6 +231,14 @@ fn get_opencode_models_timeout_secs() -> u64 {
         .unwrap_or(DEFAULT_OPENCODE_MODELS_TIMEOUT_SECS)
 }
 
+fn get_opencode_models_total_timeout_secs() -> u64 {
+    env::var("OMO_OPENCODE_MODELS_TOTAL_TIMEOUT_SECS")
+        .ok()
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(DEFAULT_OPENCODE_MODELS_TOTAL_TIMEOUT_SECS)
+}
+
 fn build_opencode_path_env() -> Option<String> {
     let home = env::var("HOME").ok()?;
     let opencode_bin = PathBuf::from(home).join(".opencode").join("bin");
@@ -249,11 +258,18 @@ fn build_opencode_path_env() -> Option<String> {
 
 fn build_opencode_candidates() -> Vec<String> {
     let mut candidates: Vec<String> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+
+    let mut push_unique = |value: String| {
+        if seen.insert(value.clone()) {
+            candidates.push(value);
+        }
+    };
 
     if let Ok(path) = env::var("OPENCODE_BIN") {
         let trimmed = path.trim();
         if !trimmed.is_empty() {
-            candidates.push(trimmed.to_string());
+            push_unique(trimmed.to_string());
         }
     }
 
@@ -263,17 +279,24 @@ fn build_opencode_candidates() -> Vec<String> {
             .join("bin")
             .join("opencode");
         if home_candidate.exists() {
-            candidates.push(home_candidate.to_string_lossy().to_string());
+            push_unique(home_candidate.to_string_lossy().to_string());
         }
     }
 
     // 最后回退 PATH 查找
-    candidates.push("opencode".to_string());
+    push_unique("opencode".to_string());
 
     candidates
 }
 
-fn run_opencode_models_with_command(binary: &str) -> Result<HashMap<String, Vec<String>>, String> {
+fn run_opencode_models_with_command(
+    binary: &str,
+    max_timeout: Duration,
+) -> Result<HashMap<String, Vec<String>>, String> {
+    if max_timeout.is_zero() {
+        return Err(format!("`{}` 已无剩余执行预算", binary));
+    }
+
     let mut cmd = if Path::new(binary).is_absolute() || binary.contains('/') {
         Command::new(binary)
     } else {
@@ -290,8 +313,8 @@ fn run_opencode_models_with_command(binary: &str) -> Result<HashMap<String, Vec<
         .spawn()
         .map_err(|e| format!("启动 `{}` 失败: {}", binary, e))?;
 
-    let timeout_secs = get_opencode_models_timeout_secs();
-    let timeout = Duration::from_secs(timeout_secs);
+    let timeout = Duration::from_secs(get_opencode_models_timeout_secs()).min(max_timeout);
+    let timeout_secs = timeout.as_secs().max(1);
     let start = Instant::now();
 
     loop {
@@ -334,8 +357,21 @@ fn get_available_models_from_opencode_cmd() -> Result<HashMap<String, Vec<String
     }
 
     let mut errors = Vec::new();
+    let total_timeout = Duration::from_secs(get_opencode_models_total_timeout_secs());
+    let started = Instant::now();
+
     for binary in build_opencode_candidates() {
-        match run_opencode_models_with_command(&binary) {
+        let elapsed = started.elapsed();
+        if elapsed >= total_timeout {
+            errors.push(format!(
+                "总超时预算已耗尽（{}s）",
+                total_timeout.as_secs()
+            ));
+            break;
+        }
+
+        let remaining = total_timeout.saturating_sub(elapsed);
+        match run_opencode_models_with_command(&binary, remaining) {
             Ok(result) => return Ok(result),
             Err(err) => errors.push(err),
         }

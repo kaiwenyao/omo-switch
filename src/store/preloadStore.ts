@@ -228,6 +228,7 @@ refreshModels: async () => {
         return a.provider.localeCompare(b.provider);
       });
 
+    // 先返回缓存快照，校验在后台进行，避免首屏被 opencode models 阻塞
     set({
       models: {
         grouped: groupedFromCache,
@@ -240,36 +241,48 @@ refreshModels: async () => {
         loading: false,
         error: null
       },
-    });
-
-    const modelsResult = await getAvailableModelsWithStatus();
-    const modelsData = modelsResult.models;
-
-    // 稳定排序：先按模型数量降序，数量相同按 provider 名称升序
-    const grouped: GroupedModels[] = Object.entries(modelsData)
-      .map(([provider, models]) => ({ provider, models }))
-      .sort((a, b) => {
-        if (b.models.length !== a.models.length) {
-          return b.models.length - a.models.length;
-        }
-        return a.provider.localeCompare(b.provider);
-      });
-
-    // 立即更新 UI（不等待 fetchModelsDev）
-    set({
-      models: {
-        grouped,
-        providers: providersData,
-        infos: {},
-        source: modelsResult.source === 'verified' ? 'verified' : 'cache_fallback',
-        fallbackReason: modelsResult.fallback_reason,
-        validatedAt: modelsResult.validated_at,
-        validating: false,
-        loading: false,
-        error: null
-      },
       _modelsRefreshing: false,
     });
+
+    void getAvailableModelsWithStatus()
+      .then((modelsResult) => {
+        const modelsData = modelsResult.models;
+
+        // 稳定排序：先按模型数量降序，数量相同按 provider 名称升序
+        const grouped: GroupedModels[] = Object.entries(modelsData)
+          .map(([provider, models]) => ({ provider, models }))
+          .sort((a, b) => {
+            if (b.models.length !== a.models.length) {
+              return b.models.length - a.models.length;
+            }
+            return a.provider.localeCompare(b.provider);
+          });
+
+        // 校验完成后再更新模型来源状态
+        set((current) => ({
+          models: {
+            grouped,
+            providers: current.models.providers,
+            infos: current.models.infos,
+            source: modelsResult.source === 'verified' ? 'verified' : 'cache_fallback',
+            fallbackReason: modelsResult.fallback_reason,
+            validatedAt: modelsResult.validated_at,
+            validating: false,
+            loading: false,
+            error: null
+          },
+        }));
+      })
+      .catch((error) => {
+        set((current) => ({
+          models: {
+            ...current.models,
+            validating: false,
+            source: 'cache_fallback',
+            fallbackReason: error instanceof Error ? error.message : '模型校验失败',
+          },
+        }));
+      });
 
     // 后台加载 models.dev 详情（不阻塞主流程）
     fetchModelsDev()
