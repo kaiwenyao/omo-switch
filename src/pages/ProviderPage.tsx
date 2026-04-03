@@ -111,7 +111,12 @@ export function ProviderPage() {
   };
 
   const configuredProviders = providers.filter(p => p.is_configured);
-  const unconfiguredProviders = providers.filter(p => !p.is_configured && p.is_builtin);
+  const unconfiguredBuiltinProviders = providers.filter(
+    p => !p.is_configured && p.is_builtin
+  );
+  const unconfiguredCustomProviders = providers.filter(
+    p => !p.is_configured && !p.is_builtin
+  );
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -187,7 +192,8 @@ export function ProviderPage() {
           ) : (
             <ProviderList
               configuredProviders={configuredProviders}
-              unconfiguredProviders={unconfiguredProviders}
+              unconfiguredBuiltinProviders={unconfiguredBuiltinProviders}
+              unconfiguredCustomProviders={unconfiguredCustomProviders}
               onConfigure={handleConfigure}
               onEdit={handleEdit}
               onDelete={handleDelete}

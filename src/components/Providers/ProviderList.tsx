@@ -162,6 +162,7 @@ export interface ProviderInfo {
   is_builtin: boolean;
   supports_base_url: boolean;
   supports_connection_test: boolean;
+  can_delete_auth: boolean;
 }
 
 export interface ProviderPreset {
@@ -368,14 +369,16 @@ const ProviderCard = memo(function ProviderCard({
               <Edit className="w-3 h-3 mr-1" />
               {t('provider.edit')}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onDelete}
-              className="text-red-500 hover:text-red-600 hover:bg-red-50"
-            >
-              <Trash2 className="w-3 h-3" />
-            </Button>
+            {provider.can_delete_auth && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onDelete}
+                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+              >
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            )}
           </>
         ) : (
           <Button
@@ -406,7 +409,8 @@ const ProviderCard = memo(function ProviderCard({
 
 interface ProviderListProps {
   configuredProviders: ProviderInfo[];
-  unconfiguredProviders: ProviderInfo[];
+  unconfiguredBuiltinProviders: ProviderInfo[];
+  unconfiguredCustomProviders: ProviderInfo[];
   onConfigure: (provider: ProviderInfo) => void;
   onEdit: (provider: ProviderInfo) => void;
   onDelete: (provider: ProviderInfo) => void;
@@ -415,7 +419,8 @@ interface ProviderListProps {
 
 export function ProviderList({
   configuredProviders,
-  unconfiguredProviders,
+  unconfiguredBuiltinProviders,
+  unconfiguredCustomProviders,
   onConfigure,
   onEdit,
   onDelete,
@@ -455,12 +460,12 @@ export function ProviderList({
         title={t('provider.builtin')}
         icon={Settings}
         iconColor="bg-indigo-500"
-        count={unconfiguredProviders.length}
+        count={unconfiguredBuiltinProviders.length}
         defaultExpanded={configuredProviders.length === 0}
       >
-        {unconfiguredProviders.length > 0 ? (
+        {unconfiguredBuiltinProviders.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {unconfiguredProviders.map((provider) => (
+            {unconfiguredBuiltinProviders.map((provider) => (
               <ProviderCard
                 key={provider.id}
                 provider={provider}
@@ -471,6 +476,30 @@ export function ProviderList({
         ) : (
           <div className="text-center py-8 text-slate-500">
             {t('provider.noBuiltin')}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title={t('provider.customTag')}
+        icon={Plus}
+        iconColor="bg-purple-500"
+        count={unconfiguredCustomProviders.length}
+        defaultExpanded={unconfiguredCustomProviders.length > 0}
+      >
+        {unconfiguredCustomProviders.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {unconfiguredCustomProviders.map((provider) => (
+              <ProviderCard
+                key={provider.id}
+                provider={provider}
+                onConfigure={() => onConfigure(provider)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-slate-500">
+            {t('provider.noCustom')}
           </div>
         )}
       </CollapsibleSection>

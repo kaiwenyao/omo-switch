@@ -86,6 +86,7 @@
     "baseUrlRequired": "请输入 Base URL",
     "noConfigured": "暂无已配置的供应商",
     "noBuiltin": "所有内置供应商已配置",
+    "noCustom": "暂无未配置的自定义供应商",
     "edit": "编辑",
     "deleteConfirm": "确定要删除供应商「{{name}}」的授权吗？",
     "confirmDelete": "确认删除",

@@ -86,6 +86,7 @@
     "baseUrlRequired": "Please enter Base URL",
     "noConfigured": "No configured providers",
     "noBuiltin": "All builtin providers are configured",
+    "noCustom": "No unconfigured custom providers",
     "edit": "Edit",
     "deleteConfirm": "Are you sure you want to delete the authorization for provider \"{{name}}\"?",
     "confirmDelete": "Confirm Delete",
