@@ -27,8 +27,51 @@ pub struct ModelPricing {
 }
 
 /// 本地缓存的模型列表结构 - 对应 provider-models.json
-#[derive(Debug, Serialize, Deserialize)]
+/// 支持两种格式：模型字符串数组 或 模型对象数组
+#[derive(Debug, Deserialize)]
 struct ProviderModelsCache {
+    /// opencode 3.x 格式: models 是 Vec<ModelEntry>（对象数组）
+    /// 旧格式/简化格式: models 是 Vec<String>（字符串数组）
+    models: HashMap<String, Vec<ModelOrString>>,
+}
+
+/// 模型缓存项 - 兼容对象和字符串两种格式
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+enum ModelOrString {
+    String(String),
+    Object { id: String },
+}
+
+impl ModelOrString {
+    fn get_id(&self) -> &str {
+        match self {
+            ModelOrString::String(s) => s,
+            ModelOrString::Object { id } => id,
+        }
+    }
+}
+
+
+impl ProviderModelsCache {
+    /// 将缓存中的模型列表转换为 HashMap<String, Vec<String>>
+    fn into_string_map(self) -> HashMap<String, Vec<String>> {
+        self.models.into_iter()
+            .map(|(provider, model_entries)| {
+                let ids: Vec<String> = model_entries
+                    .into_iter()
+                    .map(|entry| entry.get_id().to_string())
+                    .collect();
+                (provider, ids)
+            })
+            .collect()
+    }
+}
+
+
+/// 用于解析 verified-provider-models.json 的简单格式（仅字符串数组）
+#[derive(Debug, Serialize, Deserialize)]
+struct VerifiedModelsCache {
     models: HashMap<String, Vec<String>>,
 }
 
@@ -121,6 +164,33 @@ fn get_auth_provider_ids() -> Vec<String> {
     };
 
     obj.keys().cloned().collect()
+}
+
+/// 从 opencode.json 的 provider 节点提取 provider ID 列表
+fn get_opencode_config_provider_ids() -> Vec<String> {
+    let Ok(config_path) = get_opencode_config_path() else {
+        return Vec::new();
+    };
+    if !config_path.exists() {
+        return Vec::new();
+    }
+
+    let Ok(content) = fs::read_to_string(&config_path) else {
+        return Vec::new();
+    };
+    if content.trim().is_empty() {
+        return Vec::new();
+    }
+
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return Vec::new();
+    };
+
+    value
+        .get("provider")
+        .and_then(|v| v.as_object())
+        .map(|obj| obj.keys().cloned().collect())
+        .unwrap_or_default()
 }
 
 /// 获取自定义模型配置
@@ -407,7 +477,7 @@ fn read_verified_models_override() -> HashMap<String, Vec<String>> {
     let Ok(content) = fs::read_to_string(&cache_file) else {
         return HashMap::new();
     };
-    let Ok(cache) = serde_json::from_str::<ProviderModelsCache>(&content) else {
+    let Ok(cache) = serde_json::from_str::<VerifiedModelsCache>(&content) else {
         return HashMap::new();
     };
     cache.models
@@ -424,7 +494,7 @@ fn get_cached_available_models() -> Result<HashMap<String, Vec<String>>, String>
         let cache: ProviderModelsCache = serde_json::from_str(&content)
             .map_err(|e| format!("{}: {}", i18n::tr_current("parse_model_cache_failed"), e))?;
 
-        cache.models
+        cache.into_string_map()
     } else {
         HashMap::new()
     };
@@ -446,7 +516,7 @@ fn write_verified_models_override(models: &HashMap<String, Vec<String>>) -> Resu
         .map_err(|e| format!("创建模型缓存目录失败 {:?}: {}", cache_dir, e))?;
 
     let cache_file = cache_dir.join("verified-provider-models.json");
-    let payload = ProviderModelsCache {
+    let payload = VerifiedModelsCache {
         models: models.clone(),
     };
     let content = serde_json::to_string_pretty(&payload)
@@ -530,10 +600,14 @@ pub fn get_connected_providers() -> Result<Vec<String>, String> {
         cache.connected
     };
 
-    // 与 auth.json 的 provider 做并集，统一“已连接”口径（兼容 OAuth 授权）
-    for provider_id in get_auth_provider_ids() {
-        if !providers.iter().any(|p| p == &provider_id) {
-            providers.push(provider_id);
+    let mut seen: HashSet<String> = providers.iter().cloned().collect();
+    let auth_ids = get_auth_provider_ids();
+    let config_ids = get_opencode_config_provider_ids();
+    for source in [auth_ids, config_ids] {
+        for provider_id in source {
+            if seen.insert(provider_id.clone()) {
+                providers.push(provider_id);
+            }
         }
     }
 

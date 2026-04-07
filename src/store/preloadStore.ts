@@ -217,7 +217,6 @@ refreshModels: async () => {
       getAvailableModels(),
       getConnectedProviders(),
     ]);
-
     // 先展示缓存模型，避免首屏等待 `opencode models`
     const groupedFromCache: GroupedModels[] = Object.entries(cachedModelsData)
       .map(([provider, models]) => ({ provider, models }))
@@ -299,6 +298,7 @@ refreshModels: async () => {
         // 静默失败，不影响用户体验
       });
   } catch (error) {
+    console.error('[refreshModels] FAILED:', error);
     set((current) => ({
       models: {
         ...current.models,
