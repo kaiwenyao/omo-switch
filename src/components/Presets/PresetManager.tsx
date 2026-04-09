@@ -4,7 +4,7 @@ import { Bookmark, Plus, Trash2, Power, CheckCircle2, ChevronDown, ChevronRight,
 import { Button } from '../common/Button';
 import { Modal, ConfirmModal } from '../common/Modal';
 import { toast } from '../common/Toast';
-import { savePreset, loadPreset, deletePreset, renamePreset, getPresetInfo, getPresetMeta, saveConfigSnapshot } from '../../services/tauri';
+import { savePreset, loadPreset, deletePreset, renamePreset, getPresetInfo, getPresetMeta, saveConfigSnapshot, setActivePreset as persistActivePreset } from '../../services/tauri';
 import { usePresetStore } from '../../store/presetStore';
 import { usePreloadStore } from '../../store/preloadStore';
 
@@ -254,7 +254,8 @@ export function PresetManager() {
 
     try {
       setIsLoading(true);
-      await savePreset(newPresetName.trim());
+      const presetName = newPresetName.trim();
+      await savePreset(presetName);
       setShowSaveModal(false);
       setNewPresetName('');
       await loadPresetList();
@@ -338,6 +339,17 @@ export function PresetManager() {
 
     if (activePreset === oldName) {
       setActivePreset(trimmedName);
+      try {
+        await persistActivePreset(trimmedName);
+      } catch (err) {
+        toast.warning(
+          err instanceof Error
+            ? err.message
+            : t('presetManager.persistActivePresetFailed', {
+                defaultValue: '预设已重命名，但当前活动预设同步失败',
+              })
+        );
+      }
     }
     if (selectedPreset === oldName) {
       setSelectedPreset(trimmedName);

@@ -7,6 +7,7 @@ import {
   fetchModelsDev,
   checkVersions,
   getOmoConfig,
+  getActivePreset as loadActivePreset,
   listPresets,
   savePreset,
   setActivePreset as persistActivePreset,
@@ -20,6 +21,14 @@ import { usePresetStore } from './presetStore';
 interface GroupedModels {
   provider: string;
   models: string[];
+}
+
+function isValidUserPreset(name: string | null | undefined, presets: string[]): name is string {
+  return Boolean(
+    name &&
+    !name.startsWith('__builtin__') &&
+    presets.includes(name)
+  );
 }
 
 interface PreloadState {
@@ -120,9 +129,13 @@ export const usePreloadStore = create<PreloadState>()(
           await savePreset('default');
         }
 
-        // 如果没有活跃预设，设置为 default
         const currentPreset = usePresetStore.getState().activePreset;
-        if (!currentPreset || currentPreset.startsWith('__builtin__')) {
+        const persistedPreset = await loadActivePreset();
+        if (isValidUserPreset(persistedPreset, presets)) {
+          usePresetStore.getState().setActivePreset(persistedPreset);
+        } else if (isValidUserPreset(currentPreset, presets)) {
+          await persistActivePreset(currentPreset);
+        } else {
           usePresetStore.getState().setActivePreset('default');
           await persistActivePreset('default');
         }

@@ -14,6 +14,7 @@ import {
   updatePreset,
   savePreset,
   saveConfigSnapshot,
+  setActivePreset as persistActivePreset,
   type AgentConfig,
 } from '../../services/tauri';
 
@@ -132,6 +133,18 @@ export function AgentList({
       setShowSaveModal(false);
       setNewPresetName('');
       toast.success(t('presetSelector.saveSuccess', { name }));
+
+      try {
+        await persistActivePreset(name);
+      } catch (err) {
+        toast.warning(
+          err instanceof Error
+            ? err.message
+            : t('presetSelector.persistActivePresetFailed', {
+                defaultValue: '预设已保存，但当前活动预设同步失败',
+              })
+        );
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('presetSelector.saveFailed'));
     } finally {

@@ -5,7 +5,7 @@ import { Select } from '../common/Select';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { toast } from '../common/Toast';
-import { loadPreset, savePreset, saveConfigSnapshot } from '../../services/tauri';
+import { loadPreset, savePreset, saveConfigSnapshot, setActivePreset as persistActivePreset } from '../../services/tauri';
 import { usePresetStore } from '../../store/presetStore';
 
 interface PresetSelectorProps {
@@ -81,6 +81,18 @@ export function PresetSelector({ onLoadPreset, compact }: PresetSelectorProps) {
       setShowSaveModal(false);
       setNewPresetName('');
       toast.success(t('presetSelector.saveSuccess', { name }));
+
+      try {
+        await persistActivePreset(name);
+      } catch (err) {
+        toast.warning(
+          err instanceof Error
+            ? err.message
+            : t('presetSelector.persistActivePresetFailed', {
+                defaultValue: '预设已保存，但当前活动预设同步失败',
+              })
+        );
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('presetSelector.saveFailed'));
     } finally {
