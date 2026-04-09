@@ -298,14 +298,48 @@ pub fn rename_preset(old_name: &str, new_name: &str) -> Result<(), String> {
     }
 
     let new_path = get_preset_path(new_name)?;
-    if new_path.exists() {
+    let case_only_rename = is_case_only_rename(old_name, new_name);
+    if new_path.exists() && !case_only_rename {
         return Err("预设名称已存在".to_string());
     }
 
-    fs::rename(&old_path, &new_path).map_err(|e| format!("重命名预设失败: {}", e))?;
+    if case_only_rename {
+        rename_case_only_preset(&old_path, &new_path)?;
+    } else {
+        fs::rename(&old_path, &new_path).map_err(|e| format!("重命名预设失败: {}", e))?;
+    }
 
     if get_active_preset().as_deref() == Some(old_name) {
         set_active_preset(new_name)?;
+    }
+
+    Ok(())
+}
+
+fn is_case_only_rename(old_name: &str, new_name: &str) -> bool {
+    old_name != new_name && old_name.to_lowercase() == new_name.to_lowercase()
+}
+
+fn rename_case_only_preset(old_path: &PathBuf, new_path: &PathBuf) -> Result<(), String> {
+    let parent = old_path
+        .parent()
+        .ok_or_else(|| "无法获取预设目录".to_string())?;
+    let stem = old_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("preset");
+
+    let temp_path = parent.join(format!(
+        "{}.__rename_tmp_{}.json",
+        stem,
+        current_timestamp_ms()
+    ));
+
+    fs::rename(old_path, &temp_path).map_err(|e| format!("重命名预设失败: {}", e))?;
+
+    if let Err(err) = fs::rename(&temp_path, new_path) {
+        let _ = fs::rename(&temp_path, old_path);
+        return Err(format!("重命名预设失败: {}", err));
     }
 
     Ok(())
@@ -615,6 +649,13 @@ mod tests {
 
         let result = save_preset("test/invalid");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_case_only_rename_detection() {
+        assert!(is_case_only_rename("minimax-All", "Minimax-All"));
+        assert!(!is_case_only_rename("minimax-All", "minimax-All"));
+        assert!(!is_case_only_rename("minimax-All", "gpt-all"));
     }
 }
 

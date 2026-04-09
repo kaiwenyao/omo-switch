@@ -21,6 +21,16 @@ interface PresetCardProps {
   deleteLabel: string;
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+  return fallback;
+}
+
 function PresetCard({ name, agentCount, categoryCount, updatedAt, isActive, onLoad, onDelete, onRename, loadLabel, deleteLabel }: PresetCardProps) {
   const { t } = useTranslation();
   const [isEditingName, setIsEditingName] = useState(false);
@@ -64,7 +74,7 @@ function PresetCard({ name, agentCount, categoryCount, updatedAt, isActive, onLo
       await onRename(name, next);
       setIsEditingName(false);
     } catch (err) {
-      setRenameError(err instanceof Error ? err.message : t('presetManager.renameFailed'));
+      setRenameError(getErrorMessage(err, t('presetManager.renameFailed')));
     } finally {
       setIsRenaming(false);
     }
@@ -236,7 +246,7 @@ export function PresetManager() {
       setPresets(presetsWithInfo);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('presetManager.loadListFailed'));
+      setError(getErrorMessage(err, t('presetManager.loadListFailed')));
     } finally {
       setIsLoading(false);
     }
@@ -261,7 +271,7 @@ export function PresetManager() {
       await loadPresetList();
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('presetManager.saveFailed'));
+      setError(getErrorMessage(err, t('presetManager.saveFailed')));
     } finally {
       setIsLoading(false);
     }
@@ -276,8 +286,9 @@ export function PresetManager() {
       toast.success(t('presetManager.loadSuccess', { name }));
       setError(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('presetManager.loadFailed'));
-      setError(err instanceof Error ? err.message : t('presetManager.loadFailed'));
+      const message = getErrorMessage(err, t('presetManager.loadFailed'));
+      toast.error(message);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -300,8 +311,9 @@ export function PresetManager() {
       await loadPresetList();
       setError(null);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('presetManager.deleteFailed'));
-      setError(err instanceof Error ? err.message : t('presetManager.deleteFailed'));
+      const message = getErrorMessage(err, t('presetManager.deleteFailed'));
+      toast.error(message);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
