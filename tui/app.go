@@ -60,7 +60,7 @@ func (m AppModel) Init() tea.Cmd {
 	return nil
 }
 
-// Update handles window resize events and updates the viewport.
+// Update handles window resize events and keyboard input.
 // Returns the updated model and no command.
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -70,6 +70,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.Viewport < 1 {
 			m.Viewport = 1
 		}
+	case tea.KeyMsg:
+		// Handle vim-style navigation and selection keys
+		HandleKey(msg, &m)
 	}
 	return m, nil
 }

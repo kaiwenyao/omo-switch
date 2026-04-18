@@ -34,6 +34,9 @@ var (
 
 	footerStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6B7280")) // Gray
+
+	selectedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#98D8C8")) // Seafoam green for [x]
 )
 
 // View renders the TUI with the config tree.
@@ -79,6 +82,12 @@ func View(m AppModel) string {
 				cursor = cursorStyle.Render(" >")
 			}
 
+			// Selection marker
+			selPrefix := "[ ]"
+			if m.IsSelected(node.ID) {
+				selPrefix = selectedStyle.Render("[x]")
+			}
+
 			// Indent based on depth
 			if node.Depth > 0 {
 				prefix = strings.Repeat("  ", node.Depth) + prefix
@@ -87,11 +96,11 @@ func View(m AppModel) string {
 			// Type icon and styling
 			switch node.Type {
 			case "provider":
-				s.WriteString(prefix + cursor + providerStyle.Render("[P]") + " " + providerStyle.Render(node.Label))
+				s.WriteString(prefix + cursor + selPrefix + " " + providerStyle.Render("[P]") + " " + providerStyle.Render(node.Label))
 			case "agent":
-				s.WriteString(prefix + cursor + agentStyle.Render("[A]") + " " + agentStyle.Render(node.Label) + " " + modelStyle.Render(node.Model))
+				s.WriteString(prefix + cursor + selPrefix + " " + agentStyle.Render("[A]") + " " + agentStyle.Render(node.Label) + " " + modelStyle.Render(node.Model))
 			case "category":
-				s.WriteString(prefix + cursor + categoryStyle.Render("[C]") + " " + categoryStyle.Render(node.Label) + " " + modelStyle.Render(node.Model))
+				s.WriteString(prefix + cursor + selPrefix + " " + categoryStyle.Render("[C]") + " " + categoryStyle.Render(node.Label) + " " + modelStyle.Render(node.Model))
 			}
 
 			s.WriteString("\n")
@@ -110,9 +119,9 @@ func View(m AppModel) string {
 	}
 
 	s.WriteString("\n")
-	s.WriteString(footerStyle.Render(fmt.Sprintf("  Agents: %d | Categories: %d", agentCount, categoryCount)))
+	s.WriteString(footerStyle.Render(fmt.Sprintf("  Agents: %d | Categories: %d | Selected: %d", agentCount, categoryCount, m.SelectionCount)))
 	s.WriteString("\n")
-	s.WriteString(footerStyle.Render("  h/j/k/l: navigate | Enter: edit | Space: select"))
+	s.WriteString(footerStyle.Render("  Space: select | Enter: edit"))
 	s.WriteString("\n")
 
 	return s.String()
