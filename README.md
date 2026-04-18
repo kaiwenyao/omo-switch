@@ -80,7 +80,7 @@ intentional:
 | Discussions | Disabled | Low volume; revisit if community grows. |
 | Projects | Disabled | Planning lives in `.planning/`. |
 | Merge style | Default (all enabled) | Not opinionated yet; may tighten later. |
-| License | *Not yet added* — repo is "all rights reserved" by default until a `LICENSE` file is committed. |
+| License | **MIT** | See [LICENSE](LICENSE). |
 
 ## Project structure
 
