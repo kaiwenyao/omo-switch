@@ -18,7 +18,7 @@ type TreeNode struct {
 	Depth    int         // 0=provider, 1=agent/category
 	Children []*TreeNode // provider's agents/categories
 	Parent   *TreeNode
-	Selected bool        // for batch selection
+	Selected bool // for batch selection
 }
 
 // providerFromModel extracts the provider name from a model string.

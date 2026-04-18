@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"fmt"
-
 	"github.com/charmbracelet/bubbletea"
 	"github.com/kaiwenyao/omo-switch/config"
 )
@@ -11,18 +9,26 @@ import (
 // It holds the config tree and navigation state.
 type AppModel struct {
 	Config         *config.Config
-	Tree           []*TreeNode   // root provider nodes
-	FlatList       []TreeNode    // flattened tree for linear navigation
-	Cursor         int           // current position in FlatList
-	Viewport       int           // visible rows
+	Tree           []*TreeNode     // root provider nodes
+	FlatList       []TreeNode      // flattened tree for linear navigation
+	Cursor         int             // current position in FlatList
+	Viewport       int             // visible rows
 	Selected       map[string]bool // node ID -> selected
-	SelectionCount int           // cached count of selected nodes
+	SelectionCount int             // cached count of selected nodes
 	// Edit mode state
-	EditMode       bool   // true when editing
-	EditNodeID     string // "agent/name" or "category/name"
-	EditValue      string // current input value
-	OriginalModel  string // for Escape to restore
-	ConfigPath     string // path to config file for auto-save
+	EditMode      bool   // true when editing
+	EditNodeID    string // "agent/name" or "category/name"
+	EditValue     string // current input value
+	OriginalModel string // for Escape to restore
+	ConfigPath    string // path to config file for auto-save
+	ErrorMsg      string // error message to display in TUI (empty = no error)
+	// Model picker state - two level: provider list then model list
+	ModelPickerMode    bool       // true when selecting from available models
+	ProviderPickerMode bool       // true when in provider selection (first level)
+	ProviderIdx        int        // cursor position in providers list
+	ModelIdx           int        // cursor position in models list (within selected provider)
+	Providers          []Provider // all providers with their models
+	AllModels          []string   // flat list of all models for compatibility
 }
 
 // NewAppModel creates a new AppModel from a config,
@@ -30,20 +36,28 @@ type AppModel struct {
 func NewAppModel(cfg *config.Config) AppModel {
 	tree := BuildTree(cfg)
 	flatList := Flatten(tree)
+	allModels := GetAvailableModels(cfg)
+	providers := GetProvidersWithModels(cfg)
 
 	return AppModel{
-		Config:         cfg,
-		Tree:           tree,
-		FlatList:       flatList,
-		Cursor:         0,
-		Viewport:       20, // default, will be updated on resize
-		Selected:       make(map[string]bool),
-		SelectionCount: 0,
-		EditMode:       false,
-		EditNodeID:     "",
-		EditValue:      "",
-		OriginalModel:  "",
-		ConfigPath:     "", // set by main.go before creating model
+		Config:             cfg,
+		Tree:               tree,
+		FlatList:           flatList,
+		Cursor:             0,
+		Viewport:           20, // default, will be updated on resize
+		Selected:           make(map[string]bool),
+		SelectionCount:     0,
+		EditMode:           false,
+		EditNodeID:         "",
+		EditValue:          "",
+		OriginalModel:      "",
+		ConfigPath:         "", // set by main.go before creating model
+		ModelPickerMode:    false,
+		ProviderPickerMode: true, // start in provider selection mode
+		ProviderIdx:        0,
+		ModelIdx:           0,
+		Providers:          providers,
+		AllModels:          allModels,
 	}
 }
 
@@ -62,6 +76,12 @@ func (m *AppModel) IsSelected(nodeID string) bool {
 	return m.Selected[nodeID]
 }
 
+// ClearSelection clears all selections.
+func (m *AppModel) ClearSelection() {
+	m.Selected = make(map[string]bool)
+	m.updateSelectionCount()
+}
+
 // updateSelectionCount recalculates the selection count.
 func (m *AppModel) updateSelectionCount() {
 	m.SelectionCount = len(m.Selected)
@@ -73,11 +93,88 @@ func (m *AppModel) StartEdit(nodeID string, currentModel string) {
 	m.EditNodeID = nodeID
 	m.EditValue = currentModel
 	m.OriginalModel = currentModel
+	m.ModelPickerMode = false
+}
+
+// StartModelPicker initiates the model picker for the current node.
+// Starts in provider selection mode.
+// If the cursor node is not in the current selection, the selection is cleared
+// so the edit targets the cursor node alone rather than the stale selection.
+func (m *AppModel) StartModelPicker(nodeID string, currentModel string) {
+	if m.SelectionCount > 0 && !m.IsSelected(nodeID) {
+		m.ClearSelection()
+	}
+	m.ModelPickerMode = true
+	m.ProviderPickerMode = true
+	m.EditNodeID = nodeID
+	m.EditValue = currentModel
+	m.OriginalModel = currentModel
+	m.ProviderIdx = 0
+	m.ModelIdx = 0
+	m.Providers = GetAllProviders(m.Config, nodeID)
+}
+
+// ConfirmModelPicker confirms the selected model from the picker.
+func (m *AppModel) ConfirmModelPicker() error {
+	if !m.ModelPickerMode {
+		return nil
+	}
+
+	if len(m.Providers) == 0 {
+		m.CancelModelPicker()
+		return nil
+	}
+
+	var selectedModel string
+	if m.ProviderPickerMode {
+		if m.ProviderIdx < 0 || m.ProviderIdx >= len(m.Providers) {
+			return nil
+		}
+		m.ProviderPickerMode = false
+		m.ModelIdx = 0
+		return nil
+	}
+
+	if m.ProviderIdx < 0 || m.ProviderIdx >= len(m.Providers) {
+		return nil
+	}
+	provider := m.Providers[m.ProviderIdx]
+	if m.ModelIdx < 0 || m.ModelIdx >= len(provider.Models) {
+		return nil
+	}
+
+	if provider.Name == "recently" {
+		if m.ModelIdx < len(provider.FullPaths) {
+			selectedModel = provider.FullPaths[m.ModelIdx]
+		} else {
+			m.CancelModelPicker()
+			return nil
+		}
+	} else {
+		selectedModel = provider.Name + "/" + provider.Models[m.ModelIdx]
+	}
+
+	m.EditValue = selectedModel
+
+	m.Config.AddRecentModel(m.EditNodeID, selectedModel)
+
+	return m.ConfirmEdit()
+}
+
+// CancelModelPicker cancels the model picker and restores the original value.
+func (m *AppModel) CancelModelPicker() {
+	m.ModelPickerMode = false
+	m.ProviderPickerMode = true
+	m.EditNodeID = ""
+	m.EditValue = ""
+	m.OriginalModel = ""
+	m.ProviderIdx = 0
+	m.ModelIdx = 0
 }
 
 // ConfirmEdit applies the edited value and saves the config.
 func (m *AppModel) ConfirmEdit() error {
-	if !m.EditMode {
+	if !m.EditMode && !m.ModelPickerMode {
 		return nil
 	}
 
@@ -91,27 +188,46 @@ func (m *AppModel) ConfirmEdit() error {
 		nodeIDs = append(nodeIDs, m.EditNodeID)
 	}
 
-	// Apply change to each node
+	// Apply change to each node (batch mode updates fallback_models)
+	batch := len(m.Selected) > 0
 	for _, nodeID := range nodeIDs {
-		ApplyChange(m.Config, nodeID, m.EditValue)
+		ApplyChange(m.Config, nodeID, m.EditValue, batch)
 	}
 
 	// Auto-save to JSON
 	if m.ConfigPath != "" {
 		if err := SaveConfig(m.Config, m.ConfigPath); err != nil {
-			fmt.Printf("Error saving config: %v\n", err)
+			m.ErrorMsg = err.Error()
+		} else {
+			m.ErrorMsg = ""
 		}
 	}
 
 	// Rebuild tree to reflect changes
 	m.Tree = BuildTree(m.Config)
 	m.FlatList = Flatten(m.Tree)
+	// Clamp cursor to new list bounds
+	if len(m.FlatList) == 0 {
+		m.Cursor = 0
+	} else if m.Cursor >= len(m.FlatList) {
+		m.Cursor = len(m.FlatList) - 1
+	} else if m.Cursor < 0 {
+		m.Cursor = 0
+	}
+	// Refresh available models
+	m.AllModels = GetAvailableModels(m.Config)
+	// Refresh providers list
+	if m.EditNodeID != "" {
+		m.Providers = GetAllProviders(m.Config, m.EditNodeID)
+	}
 
-	// Exit edit mode
+	// Exit edit/picker mode
 	m.EditMode = false
+	m.ModelPickerMode = false
 	m.EditNodeID = ""
 	m.EditValue = ""
 	m.OriginalModel = ""
+	m.ClearSelection()
 
 	return nil
 }
@@ -142,7 +258,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyMsg:
 		// Handle vim-style navigation and selection keys
-		HandleKey(msg, &m)
+		_, cmd := HandleKey(msg, &m)
+		return m, cmd
 	}
 	return m, nil
 }
