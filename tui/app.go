@@ -8,11 +8,13 @@ import (
 // AppModel is the main Bubble Tea model for the TUI.
 // It holds the config tree and navigation state.
 type AppModel struct {
-	Config   *config.Config
-	Tree     []*TreeNode   // root provider nodes
-	FlatList []TreeNode    // flattened tree for linear navigation
-	Cursor   int           // current position in FlatList
-	Viewport int           // visible rows
+	Config         *config.Config
+	Tree           []*TreeNode   // root provider nodes
+	FlatList       []TreeNode    // flattened tree for linear navigation
+	Cursor         int           // current position in FlatList
+	Viewport       int           // visible rows
+	Selected       map[string]bool // node ID -> selected
+	SelectionCount int           // cached count of selected nodes
 }
 
 // NewAppModel creates a new AppModel from a config,
@@ -22,12 +24,34 @@ func NewAppModel(cfg *config.Config) AppModel {
 	flatList := Flatten(tree)
 
 	return AppModel{
-		Config:   cfg,
-		Tree:     tree,
-		FlatList: flatList,
-		Cursor:   0,
-		Viewport: 20, // default, will be updated on resize
+		Config:         cfg,
+		Tree:           tree,
+		FlatList:       flatList,
+		Cursor:         0,
+		Viewport:       20, // default, will be updated on resize
+		Selected:       make(map[string]bool),
+		SelectionCount: 0,
 	}
+}
+
+// ToggleSelection toggles the selection state of a node by ID.
+func (m *AppModel) ToggleSelection(nodeID string) {
+	if m.Selected[nodeID] {
+		delete(m.Selected, nodeID)
+	} else {
+		m.Selected[nodeID] = true
+	}
+	m.updateSelectionCount()
+}
+
+// IsSelected returns true if the node is selected.
+func (m *AppModel) IsSelected(nodeID string) bool {
+	return m.Selected[nodeID]
+}
+
+// updateSelectionCount recalculates the selection count.
+func (m *AppModel) updateSelectionCount() {
+	m.SelectionCount = len(m.Selected)
 }
 
 // Init initializes the Bubble Tea model.
