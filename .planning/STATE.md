@@ -10,11 +10,16 @@ See: .planning/PROJECT.md (updated 2026-04-18 after initialization)
 
 ## Phase Progress
 
-| Phase | Status | Progress |
-|-------|--------|----------|
-| 1 | pending | 0% |
+| Phase | Status | Plans | Progress |
+|-------|--------|-------|----------|
+| 1 | planned | 4 | 0% |
 
 ## Notes
 
 - Single-phase project for v1 (all requirements fit in one phase)
 - YOLO mode enabled — plans auto-approved
+- 4 plans in 4 waves: config parsing, TUI shell, vim nav, model editing
+
+---
+
+*Last updated: 2026-04-18 after Phase 1 planning*
