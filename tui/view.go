@@ -37,6 +37,11 @@ var (
 
 	selectedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#98D8C8")) // Seafoam green for [x]
+
+	editFieldStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color("#2D2D44")).
+			Bold(true)
 )
 
 // View renders the TUI with the config tree.
@@ -46,6 +51,14 @@ func View(m AppModel) string {
 	// Header
 	s.WriteString(headerStyle.Render("  omo-switch - Config Editor  "))
 	s.WriteString("\n\n")
+
+	// Edit mode indicator
+	if m.EditMode {
+		s.WriteString(editFieldStyle.Render(fmt.Sprintf("  > %s", m.EditValue)))
+		s.WriteString("\n")
+		s.WriteString(footerStyle.Render("  Enter: confirm | Esc: cancel"))
+		s.WriteString("\n\n")
+	}
 
 	// Calculate visible range
 	start := 0
