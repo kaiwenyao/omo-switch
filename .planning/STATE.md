@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-04-18 after initialization)
 
 | Phase | Status | Plans | Progress |
 |-------|--------|-------|----------|
-| 1 | in_progress | 4 | 50% |
+| 1 | in_progress | 4 | 100% |
 
 ## Notes
 
@@ -20,6 +20,8 @@ See: .planning/PROJECT.md (updated 2026-04-18 after initialization)
 - YOLO mode enabled — plans auto-approved
 - 4 plans in 4 waves: config parsing, TUI shell, vim nav, model editing
 
+**Plan 01-04 complete:** Inline model editing with auto-save implemented
+
 ---
 
-*Last updated: 2026-04-18 after completing 01-02 plan*
+*Last updated: 2026-04-18 after completing 01-04 plan*
