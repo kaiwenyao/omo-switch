@@ -1,5 +1,7 @@
 # omo-switch
 
+English | [中文](README_CN.md)
+
 Terminal UI for editing the [OpenCode](https://opencode.ai) `oh-my-openagent.json`
 config: vim-style navigation, grouped provider → model picker, batch model
 switching, atomic save.
