@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -204,6 +205,101 @@ func TestStartModelPickerOnSelectedCursorKeepsSelection(t *testing.T) {
 	if m.SelectionCount != 0 {
 		t.Errorf("selection not cleared after confirm: count=%d", m.SelectionCount)
 	}
+}
+
+// Regression for BUG 3: save failure must roll back the in-memory mutation
+// and keep the picker/selection open so the user's change is not silently
+// lost when they later press q / Esc.
+func TestConfirmEditRollsBackAndKeepsPickerOnSaveFailure(t *testing.T) {
+	cfg := &config.Config{
+		Agents: map[string]config.Agent{
+			"a": {Model: "p/original", FallbackModels: []config.FallbackModel{{Model: "p/fb"}}},
+			"b": {Model: "p/original", FallbackModels: []config.FallbackModel{{Model: "p/fb"}}},
+		},
+		Categories: map[string]config.Category{},
+	}
+	m := NewAppModel(cfg)
+	// Two selected nodes, then open picker on one of them so ConfirmEdit
+	// takes the batch path.
+	m.ToggleSelection("agent/a")
+	m.ToggleSelection("agent/b")
+	m.StartModelPicker("agent/a", "p/original")
+	// Point the save at a path whose parent does not exist — CreateTemp fails.
+	m.ConfigPath = "/nonexistent-dir-omo-switch-test/config.json"
+	m.EditValue = "p/new"
+
+	err := m.ConfirmEdit()
+	if err == nil {
+		t.Fatal("want save error, got nil")
+	}
+
+	// Rollback: in-memory config must match original disk state.
+	if got := cfg.Agents["a"].Model; got != "p/original" {
+		t.Errorf("a not rolled back: got %s", got)
+	}
+	if got := cfg.Agents["b"].Model; got != "p/original" {
+		t.Errorf("b not rolled back: got %s", got)
+	}
+	if got := cfg.Agents["a"].FallbackModels[0].Model; got != "p/fb" {
+		t.Errorf("a fallback not rolled back: got %s", got)
+	}
+
+	// Picker and selection preserved so user can retry or cancel.
+	if !m.ModelPickerMode {
+		t.Error("ModelPickerMode dropped on save failure — user would lose context")
+	}
+	if m.SelectionCount != 2 {
+		t.Errorf("selection lost on save failure: count=%d", m.SelectionCount)
+	}
+	if m.EditNodeID != "agent/a" {
+		t.Errorf("EditNodeID lost: %s", m.EditNodeID)
+	}
+	if m.ErrorMsg == "" {
+		t.Error("ErrorMsg empty — user has no indication of failure")
+	}
+}
+
+// After a failed save, retrying on a now-writable path must succeed and
+// fully commit the change, confirming the retry loop is not broken by the
+// rollback path.
+func TestConfirmEditRetrySucceedsAfterFailure(t *testing.T) {
+	cfg := &config.Config{
+		Agents: map[string]config.Agent{
+			"a": {Model: "p/original"},
+		},
+		Categories: map[string]config.Category{},
+	}
+	m := NewAppModel(cfg)
+	m.StartModelPicker("agent/a", "p/original")
+	m.ConfigPath = "/nonexistent-dir-omo-switch-test/config.json"
+	m.EditValue = "p/new"
+	if err := m.ConfirmEdit(); err == nil {
+		t.Fatal("want first attempt to fail")
+	}
+
+	// Retry with a real path.
+	dir := t.TempDir()
+	path := dir + "/cfg.json"
+	if err := writeInitialConfig(path); err != nil {
+		t.Fatal(err)
+	}
+	m.ConfigPath = path
+	if err := m.ConfirmEdit(); err != nil {
+		t.Fatalf("retry: %v", err)
+	}
+	if got := cfg.Agents["a"].Model; got != "p/new" {
+		t.Errorf("retry did not apply: got %s", got)
+	}
+	if m.ModelPickerMode {
+		t.Error("picker still open after successful retry")
+	}
+	if m.ErrorMsg != "" {
+		t.Errorf("ErrorMsg not cleared: %s", m.ErrorMsg)
+	}
+}
+
+func writeInitialConfig(path string) error {
+	return os.WriteFile(path, []byte(`{"agents":{"a":{"model":"p/original","fallback_models":[]}},"categories":{},"google_auth":false}`), 0600)
 }
 
 func TestProviderFromModel(t *testing.T) {

@@ -1,6 +1,9 @@
 package tui
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/charmbracelet/bubbletea"
 	"github.com/kaiwenyao/omo-switch/config"
 )
@@ -173,6 +176,13 @@ func (m *AppModel) CancelModelPicker() {
 }
 
 // ConfirmEdit applies the edited value and saves the config.
+//
+// If auto-save fails (disk full, permission denied, read-only filesystem, …),
+// the in-memory mutation is rolled back from a pre-mutation JSON snapshot,
+// the picker/edit mode and selection are preserved so the user can retry or
+// cancel, and the error surfaces on screen. This prevents the silent
+// memory-vs-disk divergence where quitting after a failed save would discard
+// the change without warning.
 func (m *AppModel) ConfirmEdit() error {
 	if !m.EditMode && !m.ModelPickerMode {
 		return nil
@@ -188,19 +198,43 @@ func (m *AppModel) ConfirmEdit() error {
 		nodeIDs = append(nodeIDs, m.EditNodeID)
 	}
 
+	// Snapshot for rollback on save failure. If snapshotting itself fails,
+	// we abort before mutating so memory stays consistent with disk.
+	var snapshot []byte
+	if m.ConfigPath != "" {
+		var snapErr error
+		snapshot, snapErr = json.Marshal(m.Config)
+		if snapErr != nil {
+			m.ErrorMsg = fmt.Sprintf("snapshot failed: %v", snapErr)
+			return snapErr
+		}
+	}
+
 	// Apply change to each node (batch mode updates fallback_models)
 	batch := len(m.Selected) > 0
 	for _, nodeID := range nodeIDs {
 		ApplyChange(m.Config, nodeID, m.EditValue, batch)
 	}
 
-	// Auto-save to JSON
+	// Auto-save to JSON. On failure, roll back and keep the picker/selection
+	// open so the user can retry the save or Esc to cancel cleanly.
 	if m.ConfigPath != "" {
 		if err := SaveConfig(m.Config, m.ConfigPath); err != nil {
-			m.ErrorMsg = err.Error()
-		} else {
-			m.ErrorMsg = ""
+			var restored config.Config
+			if rbErr := json.Unmarshal(snapshot, &restored); rbErr == nil {
+				*m.Config = restored
+			}
+			m.Tree = BuildTree(m.Config)
+			m.FlatList = Flatten(m.Tree)
+			if len(m.FlatList) == 0 {
+				m.Cursor = 0
+			} else if m.Cursor >= len(m.FlatList) {
+				m.Cursor = len(m.FlatList) - 1
+			}
+			m.ErrorMsg = fmt.Sprintf("save failed (changes reverted): %v", err)
+			return err
 		}
+		m.ErrorMsg = ""
 	}
 
 	// Rebuild tree to reflect changes
