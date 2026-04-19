@@ -2,3 +2,5 @@
 *.tmp
 .omo-switch-*.tmp
 .DS_Store
+.planning/
+.sisyphus/
