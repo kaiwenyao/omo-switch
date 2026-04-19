@@ -2,7 +2,10 @@
 
 [English](README.md) | 中文
 
-用于编辑 [OpenCode](https://opencode.ai) `oh-my-openagent.json` 配置文件的终端 UI 工具：Vim 风格导航、按供应商分组的模型选择器、批量切换模型、原子保存。
+用于切换 [Oh My OpenAgent (OpenCode)](https://opencode.ai) 中各角色所用 AI 模型的终端 UI 工具——例如将西西弗斯（Sisyphus）、墨提斯（Metis）、先知（Oracle）等角色的模型从 GPT-4 换成 Claude，或为多个角色批量切换模型。Vim 风格导航、按供应商分组的模型选择器、原子保存。
+
+<img src="https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go" alt="Go 1.21+">
+<img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
 
 ## 安装
 
@@ -27,6 +30,8 @@ omo-switch                                         # 默认: ~/.config/opencode/
 omo-switch -config /path/to/oh-my-openagent.json   # 自定义路径
 ```
 
+程序读取 `oh-my-openagent.json`，将所有角色（西西弗斯、墨提斯、先知、摩莫斯等）和分类按当前模型供应商分组展示。导航到任意节点，选择新模型，配置即刻原子保存——无需手动编辑 JSON。
+
 ### 快捷键
 
 | 按键 | 操作 |
@@ -45,7 +50,7 @@ omo-switch -config /path/to/oh-my-openagent.json   # 自定义路径
 - **原子保存。** 写入时先写同级临时文件，`fsync` 后 `rename`，临时文件权限为 `0600`——配置文件可能包含认证令牌，因此权限收紧，且部分写入不会破坏原文件。
 - **未知字段保留。** UI 不识别的任意字段在保存往返中完整保留。
 - **批量编辑。** 当光标位于当前选择区域*内部*时，选择模型会更新所有已选节点的主模型*及其* `fallback_models`。当光标位于选择区域*外部*时，选择被清除，编辑仅针对光标所在节点。
-- **最近模型。** 每个代理 / 分类维护一个节点级 `recent_models` 列表（去重，上限 10 个），在选择器顶部以合成的"recently"供应商展示。
+- **最近模型。** 每个角色 / 分类维护一个节点级 `recent_models` 列表（去重，上限 10 个），在选择器顶部以合成的"recently"供应商展示。
 
 ## 开发
 
