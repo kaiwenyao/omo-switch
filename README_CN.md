@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-用于切换 [Oh My OpenAgent (OpenCode)](https://opencode.ai) 中各角色所用 AI 模型的终端 UI 工具——例如将西西弗斯（Sisyphus）、墨提斯（Metis）、先知（Oracle）等角色的模型从 GPT-4 换成 Claude，或为多个角色批量切换模型。Vim 风格导航、按供应商分组的模型选择器、原子保存。
+用于切换 [Oh My OpenAgent (OpenCode)](https://opencode.ai) 中各角色所用 AI 模型的终端 UI 工具——例如将西西弗斯（Sisyphus）、先知（Oracle）等角色的模型从 GPT-4 换成 Claude，或为多个角色批量切换模型。Vim 风格导航、按供应商分组的模型选择器、原子保存。
 
 <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go" alt="Go 1.21+">
 <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
@@ -30,7 +30,7 @@ omo-switch                                         # 默认: ~/.config/opencode/
 omo-switch -config /path/to/oh-my-openagent.json   # 自定义路径
 ```
 
-程序读取 `oh-my-openagent.json`，将所有角色（西西弗斯、墨提斯、先知、摩莫斯等）和分类按当前模型供应商分组展示。导航到任意节点，选择新模型，配置即刻原子保存——无需手动编辑 JSON。
+程序读取 `oh-my-openagent.json`，将所有角色（西西弗斯、先知、摩莫斯等）和分类按当前模型供应商分组展示。导航到任意节点，选择新模型，配置即刻原子保存——无需手动编辑 JSON。
 
 ### 快捷键
 

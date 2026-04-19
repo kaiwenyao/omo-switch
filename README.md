@@ -4,7 +4,7 @@ English | [中文](README_CN.md)
 
 Terminal UI for switching the AI model used by each agent and category in
 [Oh My OpenAgent (OpenCode)](https://opencode.ai) — for example, changing the
-model for Sisyphus, Metis, Oracle, or any other agent defined in your
+model for Sisyphus, Oracle, or any other agent defined in your
 `oh-my-openagent.json` config. Vim-style navigation, grouped provider → model
 picker, batch switching, atomic save.
 
@@ -35,7 +35,7 @@ omo-switch -config /path/to/oh-my-openagent.json   # custom path
 ```
 
 The app reads your `oh-my-openagent.json` and presents all agents (Sisyphus,
-Metis, Oracle, Momus, …) and categories grouped by their current model
+Oracle, Momus, …) and categories grouped by their current model
 provider. Navigate to any node, pick a new model, and the config is saved
 atomically — no manual JSON editing required.
 
