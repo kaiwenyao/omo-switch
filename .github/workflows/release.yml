@@ -26,6 +26,8 @@ jobs:
             platform: windows-latest
             tauriArgs: '--bundles nsis'
     runs-on: ${{ matrix.platform }}
+    env:
+      VITE_GITHUB_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
 
     steps:
       - name: 拉取源代码
